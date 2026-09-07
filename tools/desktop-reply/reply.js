@@ -12,7 +12,7 @@
   window.codexReply?.uninstall();
   document
     .querySelectorAll(
-      ".codex-reply-style,.codex-reply-bar,.codex-reply-selection,.codex-reply-action",
+      ".codex-reply-style,.codex-reply-bar,.codex-reply-selection,.codex-reply-action,.codex-reply-entry",
     )
     .forEach((node) => node.remove());
   const assistant = '[data-markdown-text-style="assistant-message"]';
@@ -24,6 +24,7 @@
   let forwarding = false;
   let scheduled = false;
   let active = true;
+  let picking = false;
   const element = (tag, className, text) => {
     const node = document.createElement(tag);
     node.className = className;
@@ -61,8 +62,19 @@
     .codex-reply-quote { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; overflow-wrap:anywhere; }
     .codex-reply-preview[aria-expanded=true] .codex-reply-quote { display:block; white-space:pre-wrap; }
     .codex-reply-source { outline:1px solid var(--color-token-input-border,#888); outline-offset:5px; border-radius:var(--radius-md,8px); }
+    .codex-reply-marker { display:none; }
+    .codex-reply-entry { display:flex; align-items:center; gap:8px; margin:0 0 8px; font:inherit; font-size:12px; color:var(--color-text-secondary,inherit); }
+    .codex-reply-entry button { font:inherit; color:inherit; cursor:pointer; border:1px solid var(--color-token-border-default,#8884); border-radius:var(--radius-md,8px); background:transparent; padding:5px 9px; }
+    .codex-reply-entry span { color:var(--color-text-tertiary,#888); }
+    body.codex-reply-picking .codex-reply-action { opacity:1; background:var(--color-background-elevated-primary-opaque,#303030); }
   `;
   document.head.append(style);
+  const entry = own(element("div", "codex-reply-entry"));
+  const pick = element("button", "", "↩ Reply to a message");
+  pick.type = "button";
+  pick.setAttribute("aria-pressed", "false");
+  const hint = element("span", "", "Or select a question to quote it");
+  entry.append(pick, hint);
   const bar = own(element("div", "codex-reply-bar"));
   bar.setAttribute("role", "status");
   const preview = element("button", "codex-reply-preview");
@@ -89,21 +101,28 @@
     selectionButton.remove();
     selected = null;
   };
-  const markdown = (text) => text.replace(/[\\`*_{}\[\]<>()#+.!|~-]/g, "\\$&");
+  const html = (text) =>
+    text.replace(
+      /[&<>\"]/g,
+      (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c],
+    );
   const prefix = (value) =>
-    `> [Reply to Codex](#codex-reply-${encodeURIComponent(value.id)})\n${value.text
+    `<blockquote><p>Reply to Codex (#codex-reply-${html(encodeURIComponent(value.id))})</p>${value.text
       .split("\n")
-      .map((line) => "> " + markdown(line))
-      .join("\n")}\n\n`;
+      .map((line) => "<p>" + html(line) + "</p>")
+      .join("")}</blockquote><p></p>`;
   function refreshBar() {
     const input = editor();
+    const root = input?.closest("[data-composer-input-variant]");
+    if (root && !pending) {
+      if (!root.contains(entry)) root.prepend(entry);
+    } else entry.remove();
     if (!pending || !input) {
       bar.remove();
       return;
     }
     if (quote.textContent !== pending.text) quote.textContent = pending.text;
     quote.title = pending.text;
-    const root = input.closest("[data-composer-input-variant]");
     if (root && !root.contains(bar)) root.prepend(bar);
   }
   function choose(root, text) {
@@ -123,10 +142,17 @@
       input: editor(),
       conversation: source.dataset.responseAnnotationConversation,
     };
+    setPicking(false);
     preview.setAttribute("aria-expanded", "false");
     removeSelection();
     refreshBar();
     editor().focus();
+    const caret = document.createRange();
+    caret.selectNodeContents(editor());
+    caret.collapse(false);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(caret);
   }
   function cancelReply() {
     // Before submission the editor is untouched, so cancellation preserves the draft.
@@ -136,6 +162,16 @@
     editor()?.focus();
   }
   on(cancel, "click", cancelReply);
+  function setPicking(value) {
+    picking = value;
+    document.body.classList.toggle("codex-reply-picking", value);
+    pick.setAttribute("aria-pressed", String(value));
+    pick.textContent = value ? "Cancel selection" : "↩ Reply to a message";
+    hint.textContent = value
+      ? "Choose Reply on a message, or select the exact question"
+      : "Or select a question to quote it";
+  }
+  on(pick, "click", () => setPicking(!picking));
   on(preview, "click", () =>
     preview.setAttribute(
       "aria-expanded",
@@ -204,7 +240,7 @@
       range.collapse(true);
       selection.removeAllRanges();
       selection.addRange(range);
-      if (!document.execCommand("insertText", false, value)) {
+      if (!document.execCommand("insertHTML", false, value)) {
         quote.textContent =
           "Could not attach the question. Your answer was not sent.";
         return;
@@ -241,6 +277,7 @@
     window,
     "keydown",
     (e) => {
+      if (e.key === "Escape" && picking) setPicking(false);
       if (e.key === "Escape" && pending && !prepared) {
         e.preventDefault();
         cancelReply();
@@ -308,6 +345,19 @@
       on(button, "click", () => choose(root, root.innerText));
       source.append(button);
     }
+    for (const root of document.querySelectorAll(
+      '[data-markdown-text-tone="user-message"] blockquote',
+    )) {
+      const marker = root.querySelector(":scope > p");
+      const match = marker?.textContent.match(
+        /^Reply to Codex \(#codex-reply-([A-Za-z0-9_%.-]+)\)$/,
+      );
+      if (!match || root.querySelector(".codex-reply-link")) continue;
+      const link = own(element("a", "codex-reply-link", "↩ Reply to Codex"));
+      link.href = "#codex-reply-" + match[1];
+      marker.classList.add("codex-reply-marker");
+      root.prepend(link);
+    }
     refreshBar();
   }
   const observer = new MutationObserver(() => {
@@ -326,9 +376,13 @@
     }),
     uninstall() {
       active = false;
+      document.body.classList.remove("codex-reply-picking");
       controller.abort();
       observer.disconnect();
       for (const node of owned) node.remove();
+      document
+        .querySelectorAll(".codex-reply-marker")
+        .forEach((node) => node.classList.remove("codex-reply-marker"));
       document
         .querySelectorAll(".codex-reply-source")
         .forEach((node) => node.classList.remove("codex-reply-source"));

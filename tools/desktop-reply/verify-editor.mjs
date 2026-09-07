@@ -73,10 +73,12 @@ try {
     if (roots.length !== 2) throw Error('Two loaded assistant messages are required.');
     const wait = () => new Promise(resolve => setTimeout(resolve, 120));
     const replace = text => {
-      input.focus(); const range=document.createRange(); range.selectNodeContents(input);
+      // Reset the test document, including block structure left by intercepted sends.
+      const paragraph=document.createElement('p'); paragraph.textContent=text;
+      input.replaceChildren(paragraph);
+      input.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertText'}));
+      input.focus(); const range=document.createRange(); range.selectNodeContents(input); range.collapse(false);
       const selection=getSelection(); selection.removeAllRanges(); selection.addRange(range);
-      if (text) document.execCommand('insertText', false, text);
-      else document.execCommand('delete');
     };
     const choose = (root, excerpt) => {
       const node = [...root.querySelectorAll('p')].find(p => p.textContent.trim()) || root;
@@ -95,6 +97,7 @@ try {
       const selection=getSelection(); selection.removeAllRanges(); selection.addRange(range);
       node.dispatchEvent(new MouseEvent('mouseup',{bubbles:true}));
       document.querySelector('.codex-reply-selection').click();
+      if (!input.contains(selection.anchorNode)) throw Error('Reply selection must move the caret to the composer.');
       return {id:root.closest('[data-response-annotation-target]').dataset.responseAnnotationTarget,text};
     };
     let forwarded = [];
@@ -131,6 +134,7 @@ try {
     } finally {
       window.removeEventListener('keydown',stop,true);
       replace('');
+      await wait();
     }
   })()`);
   assert.equal(result.cancellation, true, "Cancel preserves the draft");
@@ -165,11 +169,8 @@ try {
     "Excerpts differ",
   );
   for (const value of result.excerpts) {
-    const escaped = value.text
-      .trim()
-      .replace(/[\\\x60*_{}\[\]<>()#+.!|~-]/g, "\\$&");
     assert.ok(
-      value.payload.includes("> " + escaped),
+      value.payload.includes(value.text.trim()),
       "The selected excerpt is attached exactly",
     );
     assert.ok(

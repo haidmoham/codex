@@ -1,5 +1,6 @@
 $ErrorActionPreference = 'Stop'
-$replyInstall = Join-Path $env:LOCALAPPDATA 'CodexReply'
+# Store apps redirect LocalAppData. Use a path that normal desktop launches can read.
+$replyInstall = Join-Path $env:USERPROFILE '.codex/desktop-reply'
 New-Item -ItemType Directory -Path $replyInstall -Force | Out-Null
 foreach ($replyName in @('reply.js', 'attach.mjs', 'Start-Reply.ps1', 'Stop-Reply.ps1', 'Restart-Reply.ps1')) {
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot $replyName) -Destination (Join-Path $replyInstall $replyName) -Force
