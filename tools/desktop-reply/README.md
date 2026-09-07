@@ -25,6 +25,11 @@ existing Codex process. It starts the installed executable with a debugging port
 bound to `127.0.0.1`, then attaches the extension. Local processes can access this
 debugging port while it is open.
 
+Run `Install-Reply.ps1` to copy the loader into Local AppData and create a
+**Codex with Replies** desktop shortcut. Use this shortcut for later launches.
+`Restart-Reply.ps1` closes and restarts Codex. Run it only after coordinating
+active tasks. It restores normal app access if the enhancement fails to start.
+
 Hover an assistant message and select **Reply**, or select one question and
 choose **Reply to selection**. The quoted question appears inside the composer.
 Select the preview to expand it. Select × or press Escape to cancel without
