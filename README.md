@@ -1,3 +1,11 @@
+# Personal Codex fork
+
+This is a fork of [OpenAI Codex](https://github.com/openai/codex). My local addition is the [Windows desktop reply experiment](tools/desktop-reply/README.md): selected-text replies, structured quoted context, a launcher, and rollback controls. It is an unofficial runtime extension with version-specific limitations; the upstream CLI is not my original project.
+
+The upstream installation instructions below install official Codex, not this experiment. Start with the experiment’s own README to inspect or run the fork-specific work.
+
+---
+
 <p align="center"><strong>Codex CLI</strong> is a coding agent from OpenAI that runs locally on your computer.
 <p align="center">
   <img src="https://github.com/openai/codex/blob/main/.github/codex-cli-splash.png" alt="Codex CLI splash" width="80%" />
